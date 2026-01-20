@@ -10,7 +10,7 @@ import {
   PLAYREADY_KEY_SYSTEM
 } from './ms-prefixed';
 import {detectSupportedCDMs } from './cdm.js';
-import { arrayBuffersEqual, arrayBufferFrom, merge, getMediaKeySystemConfigurations } from './utils';
+import { arrayBuffersEqual, arrayBufferFrom, merge, getMediaKeySystemConfigurations, uint16ArrayToString } from './utils';
 import {version as VERSION} from '../package.json';
 import EmeError from './consts/errors';
 
@@ -434,6 +434,7 @@ const eme = function(options = {}) {
       };
 
       const webkitNeedKeyEventHandler = (event) => {
+        const contentId = uint16ArrayToString(event.initData);
         const firstWebkitneedkeyTimeout = getOptions(player).firstWebkitneedkeyTimeout || 1000;
         const src = player.src();
         // on source change or first startup reset webkitneedkey options.
@@ -444,7 +445,8 @@ const eme = function(options = {}) {
         // track source changes internally.
         if (player.eme.webkitneedkey_.src !== src) {
           player.eme.webkitneedkey_ = {
-            handledFirstEvent: false,
+            handledFirstEvent: {},
+            timeout: {},
             src
           };
         }
@@ -454,13 +456,13 @@ const eme = function(options = {}) {
         // our first existing request if we get another within 1 second. This
         // prevents a non-fatal player error from showing up due to a
         // request failure.
-        if (!player.eme.webkitneedkey_.handledFirstEvent) {
+        if (!player.eme.webkitneedkey_.handledFirstEvent[contentId]) {
           // clear the old timeout so that a new one can be created
           // with the new rendition's event data
-          player.clearTimeout(player.eme.webkitneedkey_.timeout);
-          player.eme.webkitneedkey_.timeout = player.setTimeout(() => {
-            player.eme.webkitneedkey_.handledFirstEvent = true;
-            player.eme.webkitneedkey_.timeout = null;
+          player.clearTimeout(player.eme.webkitneedkey_.timeout[contentId]);
+          player.eme.webkitneedkey_.timeout[contentId] = player.setTimeout(() => {
+            player.eme.webkitneedkey_.handledFirstEvent[contentId] = true;
+            player.eme.webkitneedkey_.timeout[contentId] = null;
             handleFn(event);
           }, firstWebkitneedkeyTimeout);
           // after we have a verified first request, we will request on
